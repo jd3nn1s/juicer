@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"github.com/jd3nn1s/juicer/lemoncan"
-	"github.com/jd3nn1s/skytraq"
 	log "github.com/sirupsen/logrus"
 	"math"
 	"time"
@@ -17,9 +16,6 @@ const (
 	channelBufferSize = 1
 )
 
-var gpsConnect = func(p string) (GPS, error) {
-	return skytraq.Connect(p)
-}
 var canBusConnect = func(p string) (CANBus, error) {
 	return lemoncan.Connect(p)
 }
@@ -88,65 +84,6 @@ func castToFloat32(val interface{}) float32 {
 		return v
 	}
 	return 0
-}
-
-func runGPS(ctx context.Context, sendChan chan<- gpsData) {
-	var err error
-	var c GPS
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-		if err != nil {
-			log.Error("reconnecting due to error ", err)
-			if c != nil {
-				if err = c.Close(); err != nil {
-					log.WithField("err", err).Warn("unable to close gps connection")
-				}
-			}
-			c = nil
-			time.Sleep(time.Second)
-		}
-		if c == nil {
-			c, err = gpsConnect(gpsPortName)
-			if err != nil {
-				continue
-			}
-		}
-		err = c.Start(ctx, skytraq.Callbacks{
-			SoftwareVersion: func(version skytraq.SoftwareVersion) {
-				log.Infof("software version: %v", version)
-			},
-			NavData: func(navData skytraq.NavData) {
-				if navData.Fix == skytraq.FixNone {
-					log.Warnf("no satellite fix")
-					return
-				}
-				if navData.HDOP > 500 {
-					log.WithField("HDOP", navData.HDOP).Warn("poor resolution")
-				}
-				speed := math.Sqrt(math.Pow(float64(navData.VX), 2) +
-					math.Pow(float64(navData.VY), 2))
-				track := math.Atan(float64(navData.VX) / float64(navData.VY))
-				if math.IsNaN(track) {
-					track = 0
-				}
-
-				select {
-				case sendChan <- gpsData{
-					Latitude:  navData.Latitude,
-					Longitude: navData.Longitude,
-					Altitude:  navData.Altitude,
-					Speed:     speed,
-					Track:     track,
-				}:
-				default:
-				}
-			},
-		})
-	}
 }
 
 func runCAN(ctx context.Context, sendChan chan<- canSensorData) {

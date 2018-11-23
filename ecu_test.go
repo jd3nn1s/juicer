@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/jd3nn1s/kw1281"
 	"github.com/stretchr/testify/assert"
+	"sync"
 	"testing"
 )
 
@@ -30,8 +31,11 @@ func TestRunECU(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
 		_ = ecuRetryable.Start(ctx)
+		wg.Done()
 	}()
 	<-stub.startChan
 
@@ -64,4 +68,6 @@ func TestRunECU(t *testing.T) {
 	}
 	data := <-ecuChan
 	assert.Equal(t, float32(3200), data.RPM)
+	cancel()
+	wg.Wait()
 }
