@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"github.com/jd3nn1s/juicer/lemoncan"
 	log "github.com/sirupsen/logrus"
 	"math"
-	"time"
 )
 
 const (
@@ -15,10 +13,6 @@ const (
 
 	channelBufferSize = 1
 )
-
-var canBusConnect = func(p string) (CANBus, error) {
-	return lemoncan.Connect(p)
-}
 
 func main() {
 	log.SetLevel(log.InfoLevel)
@@ -84,53 +78,4 @@ func castToFloat32(val interface{}) float32 {
 		return v
 	}
 	return 0
-}
-
-func runCAN(ctx context.Context, sendChan chan<- canSensorData) {
-	var err error
-	var c CANBus
-	var data canSensorData
-
-	send := func() {
-		select {
-		case sendChan <- data:
-		default:
-		}
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-		if err != nil {
-			log.Error("reconnecting due to error ", err)
-			if c != nil {
-				if err = c.Close(); err != nil {
-					log.WithField("err", err).Warn("unable to close canbus connection")
-				}
-			}
-			c = nil
-			time.Sleep(time.Second)
-		}
-		if c == nil {
-			c, err = canBusConnect(canBusPortName)
-			continue
-		}
-		err = c.Start(ctx, lemoncan.Callbacks{
-			Fuel: func(v int) {
-				data.FuelLevel = v
-				send()
-			},
-			CoolantTemp: func(v int) {
-				data.CoolantTemp = v
-				send()
-			},
-			OilTemp: func(v int) {
-				data.OilTemp = v
-				send()
-			},
-		})
-	}
 }
