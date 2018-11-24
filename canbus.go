@@ -6,26 +6,26 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type canBus struct {
+type canBusRetryable struct {
 	c        CANBus
 	sendChan chan<- canSensorData
 	data     canSensorData
 }
 
-func (bus *canBus) Open() error {
+func (bus *canBusRetryable) Open() error {
 	c, err := canBusConnect(canBusPortName)
 	bus.c = c
 	return err
 }
 
-func (bus *canBus) Close() error {
+func (bus *canBusRetryable) Close() error {
 	if bus.c == nil {
 		return nil
 	}
 	return bus.c.Close()
 }
 
-func (bus *canBus) Start(ctx context.Context) error {
+func (bus *canBusRetryable) Start(ctx context.Context) error {
 	return bus.c.Start(ctx, lemoncan.Callbacks{
 		Fuel: func(v int) {
 			bus.data.FuelLevel = v
@@ -42,14 +42,14 @@ func (bus *canBus) Start(ctx context.Context) error {
 	})
 }
 
-func (bus *canBus) send() {
+func (bus *canBusRetryable) send() {
 	select {
 	case bus.sendChan <- bus.data:
 	default:
 	}
 }
 
-func (bus *canBus) Name() string {
+func (bus *canBusRetryable) Name() string {
 	return "canbus"
 }
 
@@ -57,11 +57,19 @@ var canBusConnect = func(p string) (CANBus, error) {
 	return lemoncan.Connect(p)
 }
 
-func runCAN(ctx context.Context, sendChan chan<- canSensorData) {
-	err := retry(ctx, &canBus{
+func newCANBus(sendChan chan<- canSensorData) *canBusRetryable {
+	return &canBusRetryable{
 		sendChan: sendChan,
-	})
+	}
+}
+
+func (bus *canBusRetryable) runCAN(ctx context.Context) {
+	err := retry(ctx, bus)
 	if err != nil {
 		log.Errorf("canbus done: %v", err)
 	}
+}
+
+func (bus *canBusRetryable) CANBus() CANBus {
+	return bus.c
 }

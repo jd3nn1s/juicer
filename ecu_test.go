@@ -21,7 +21,7 @@ func TestRunECU(t *testing.T) {
 		return stub, nil
 	}
 
-	ecuRetryable := &ecu{
+	ecuRetryable := &ecuRetryable{
 		sendChan: ecuChan,
 	}
 
@@ -42,6 +42,10 @@ func TestRunECU(t *testing.T) {
 	stub.fnChan <- func() {
 		stub.callbacks.ECUDetails(&kw1281.ECUDetails{
 			PartNumber: "fakeecu",
+			Details: []string{
+				"line 1",
+				"line 2",
+			},
 		})
 	}
 

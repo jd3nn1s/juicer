@@ -20,7 +20,7 @@ func TestRunCANBus(t *testing.T) {
 		return stub, nil
 	}
 
-	canBusRetryable := &canBus{
+	canBusRetryable := &canBusRetryable{
 		sendChan: canBusChan,
 	}
 

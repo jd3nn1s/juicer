@@ -135,3 +135,23 @@ func TestCastToFloat32(t *testing.T) {
 	assert.Equal(t, float32(1), castToFloat32(int(1)))
 	assert.Equal(t, float32(0), castToFloat32("hah"))
 }
+
+func TestSendSpeed(t *testing.T) {
+	ms := &metricSender{}
+	jc := Juicer{
+		metricSender: ms,
+	}
+
+	jc.telemetry.Speed = 100
+	jc.telemetryUpdate()
+	assert.Equal(t, 100, ms.speed)
+	assert.Equal(t, 1, ms.callCount)
+
+	jc.telemetryUpdate()
+	assert.Equal(t, 1, ms.callCount, "unexpected call after unchanged telemetry")
+
+	jc.telemetry.Speed = 200
+	jc.telemetryUpdate()
+	assert.Equal(t, 200, ms.speed)
+	assert.Equal(t, 2, ms.callCount)
+}

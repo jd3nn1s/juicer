@@ -20,4 +20,9 @@ type GPS interface {
 type CANBus interface {
 	Close() error
 	Start(context.Context, lemoncan.Callbacks) error
+	SendSpeed(int) error
+}
+
+type MetricSender interface {
+	SendSpeed(int) error
 }

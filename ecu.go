@@ -6,7 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type ecu struct{
+type ecuRetryable struct{
 	c KW1281
 	sendChan chan<- ecuData
 }
@@ -16,24 +16,24 @@ var ecuConnect = func(p string) (KW1281, error) {
 	return kw1281.Connect(p)
 }
 
-func (e *ecu) Name() string {
+func (e *ecuRetryable) Name() string {
 	return "ecu"
 }
 
-func (e *ecu) Open() error {
+func (e *ecuRetryable) Open() error {
 	c, err := ecuConnect(ecuPortName)
 	e.c = c
 	return err
 }
 
-func (e *ecu) Close() error {
+func (e *ecuRetryable) Close() error {
 	if e.c == nil {
 		return nil
 	}
 	return e.c.Close()
 }
 
-func (e *ecu) Start(ctx context.Context) error {
+func (e *ecuRetryable) Start(ctx context.Context) error {
 	data := ecuData{}
 	return e.c.Start(ctx, kw1281.Callbacks{
 		ECUDetails: func(details *kw1281.ECUDetails) {
@@ -66,7 +66,7 @@ func (e *ecu) Start(ctx context.Context) error {
 }
 
 func runECU(ctx context.Context, sendChan chan<- ecuData) {
-	err := retry(ctx, &ecu{
+	err := retry(ctx, &ecuRetryable{
 		sendChan: sendChan,
 	})
 	if err != nil {

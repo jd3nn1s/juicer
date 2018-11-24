@@ -25,6 +25,7 @@ type skytraqStub struct {
 
 type canBusStub struct {
 	sensorStub
+	speed int
 	callbacks lemoncan.Callbacks
 }
 
@@ -90,4 +91,20 @@ func createCANBusStub() *canBusStub {
 func (c *canBusStub) Start(ctx context.Context, callbacks lemoncan.Callbacks) error {
 	c.callbacks = callbacks
 	return c.sensorStub.start(ctx)
+}
+
+func (c *canBusStub) SendSpeed(speed int) error {
+	c.speed = speed
+	return nil
+}
+
+type metricSender struct {
+	speed int
+	callCount int
+}
+
+func (ms *metricSender) SendSpeed(speed int) error {
+	ms.speed = speed
+	ms.callCount++
+	return nil
 }

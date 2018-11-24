@@ -12,25 +12,25 @@ const (
 	maxHDOP = 500
 )
 
-type gps struct {
+type gpsRetryable struct {
 	c GPS
 	sendChan chan<- gpsData
 }
 
-func (g *gps) Open() error {
+func (g *gpsRetryable) Open() error {
 	c, err := gpsConnect(gpsPortName)
 	g.c = c
 	return err
 }
 
-func (g *gps) Close() error {
+func (g *gpsRetryable) Close() error {
 	if g.c == nil {
 		return nil
 	}
 	return g.c.Close()
 }
 
-func (g *gps) Start(ctx context.Context) error {
+func (g *gpsRetryable) Start(ctx context.Context) error {
 	return g.c.Start(ctx, skytraq.Callbacks{
 		SoftwareVersion: func(version skytraq.SoftwareVersion) {
 			log.Infof("software version: %v", version)
@@ -39,11 +39,11 @@ func (g *gps) Start(ctx context.Context) error {
 	})
 }
 
-func (g *gps) Name() string {
+func (g *gpsRetryable) Name() string {
 	return "gps"
 }
 
-func (g* gps) navDataFn(navData skytraq.NavData) {
+func (g*gpsRetryable) navDataFn(navData skytraq.NavData) {
 	if navData.Fix == skytraq.FixNone {
 		log.Warnf("no satellite fix")
 		return
@@ -76,7 +76,7 @@ var gpsConnect = func(p string) (GPS, error) {
 }
 
 func runGPS(ctx context.Context, sendChan chan<- gpsData) {
-	err := retry(ctx, &gps{
+	err := retry(ctx, &gpsRetryable{
 		sendChan: sendChan,
 	})
 	if err != nil {

@@ -21,7 +21,7 @@ func TestRunGPS(t *testing.T) {
 		return stub, nil
 	}
 
-	gpsRetryable := &gps{
+	gpsRetryable := &gpsRetryable{
 		sendChan: gpsChan,
 	}
 
@@ -73,7 +73,7 @@ func TestRunGPS(t *testing.T) {
 
 func TestNavDataFn(t *testing.T) {
 	gpsChan, _, _ := mkChannels()
-	gpsRetryable := gps{
+	gpsRetryable := gpsRetryable{
 		sendChan: gpsChan,
 	}
 

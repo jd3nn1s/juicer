@@ -14,23 +14,43 @@ const (
 	channelBufferSize = 1
 )
 
+type Juicer struct {
+	metricSender MetricSender
+	prevTelemetry Telemetry
+	telemetry Telemetry
+}
+
 func main() {
 	log.SetLevel(log.InfoLevel)
 
 	ctx := context.Background()
 
 	gpsChan, ecuChan, canSensorChan := mkChannels()
-	go runCAN(ctx, canSensorChan)
+	canSensorBus := newCANBus(canSensorChan)
+	go canSensorBus.runCAN(ctx)
 	go runECU(ctx, ecuChan)
 	go runGPS(ctx, gpsChan)
 
-	telemetry := Telemetry{}
+	juicer := Juicer{
+		metricSender: canSensorBus.CANBus(),
+	}
+
 	for {
-		changed := checkChannels(&telemetry, gpsChan, ecuChan, canSensorChan)
+		changed := checkChannels(&juicer.telemetry, gpsChan, ecuChan, canSensorChan)
 		if changed {
-			// send to UDP channel
+			juicer.telemetryUpdate()
 		}
 	}
+}
+
+func (jc *Juicer) telemetryUpdate() {
+	// send to UDP channel
+	if jc.prevTelemetry.Speed != jc.telemetry.Speed {
+		if err := jc.metricSender.SendSpeed(int(jc.telemetry.Speed)); err != nil {
+			log.WithField("speed", jc.telemetry.Speed).Error("unable to send speed to CAN bus")
+		}
+	}
+	jc.prevTelemetry = jc.telemetry
 }
 
 func mkChannels() (gpsChan chan gpsData, ecuChan chan ecuData, canSensorChan chan canSensorData) {
