@@ -1,4 +1,4 @@
-package main
+package juicer
 
 type gpsData struct {
 	Latitude  int

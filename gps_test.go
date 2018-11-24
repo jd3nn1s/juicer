@@ -1,4 +1,4 @@
-package main
+package juicer
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestRunGPS(t *testing.T) {
-	gpsChan, _, _ := mkChannels()
+	jc := NewJuicer()
 
 	origGPSConnect := gpsConnect
 	defer func() {
@@ -22,7 +22,7 @@ func TestRunGPS(t *testing.T) {
 	}
 
 	gpsRetryable := &gpsRetryable{
-		sendChan: gpsChan,
+		sendChan: jc.gpsChan,
 	}
 
 	// close before opening
@@ -65,16 +65,16 @@ func TestRunGPS(t *testing.T) {
 	}
 
 	// read some data
-	<-gpsChan
+	<-jc.gpsChan
 
 	cancel()
 	wg.Wait()
 }
 
 func TestNavDataFn(t *testing.T) {
-	gpsChan, _, _ := mkChannels()
+	jc := NewJuicer()
 	gpsRetryable := gpsRetryable{
-		sendChan: gpsChan,
+		sendChan: jc.gpsChan,
 	}
 
 	navData := skytraq.NavData{
@@ -90,11 +90,11 @@ func TestNavDataFn(t *testing.T) {
 	}
 
 	gpsRetryable.navDataFn(navData)
-	assertNoData(t, gpsChan,"unexpected data on channel as there is no fix")
+	assertNoData(t, jc.gpsChan,"unexpected data on channel as there is no fix")
 
 	navData.Fix = skytraq.Fix3D
 	gpsRetryable.navDataFn(navData)
-	telem := <-gpsChan
+	telem := <-jc.gpsChan
 	assert.Equal(t, 2, telem.Latitude)
 	assert.Equal(t, 3, telem.Longitude)
 	assert.Equal(t, 4, telem.Altitude)
@@ -103,14 +103,14 @@ func TestNavDataFn(t *testing.T) {
 
 	navData.HDOP = maxHDOP + 1
 	gpsRetryable.navDataFn(navData)
-	assertNoData(t, gpsChan,"unexpected data on channel as there is high HDOP")
+	assertNoData(t, jc.gpsChan,"unexpected data on channel as there is high HDOP")
 
 	// no VY or VX should return 0 track
 	navData.HDOP = 0
 	navData.VY = 0
 	navData.VX = 0
 	gpsRetryable.navDataFn(navData)
-	telem = <-gpsChan
+	telem = <-jc.gpsChan
 	assert.Equal(t, float64(0), telem.Track)
 }
 

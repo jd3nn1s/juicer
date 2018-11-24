@@ -1,4 +1,4 @@
-package main
+package juicer
 
 import (
 	"context"
@@ -18,32 +18,29 @@ type Juicer struct {
 	metricSender MetricSender
 	prevTelemetry Telemetry
 	telemetry Telemetry
+
+	gpsChan chan gpsData
+	ecuChan chan ecuData
+	canSensorChan chan canSensorData
+
+	canSensorBus *canBusRetryable
 }
 
-func main() {
-	log.SetLevel(log.InfoLevel)
-
-	ctx := context.Background()
-
-	gpsChan, ecuChan, canSensorChan := mkChannels()
-	canSensorBus := newCANBus(canSensorChan)
-	go canSensorBus.runCAN(ctx)
-	go runECU(ctx, ecuChan)
-	go runGPS(ctx, gpsChan)
-
-	juicer := Juicer{
-		metricSender: canSensorBus.CANBus(),
-	}
-
-	for {
-		changed := checkChannels(&juicer.telemetry, gpsChan, ecuChan, canSensorChan)
-		if changed {
-			juicer.telemetryUpdate()
-		}
-	}
+func NewJuicer() *Juicer {
+	jc := &Juicer{}
+	jc.mkChannels()
+	canSensorBus := newCANBus(jc.canSensorChan)
+	jc.metricSender = canSensorBus.CANBus()
+	return jc
 }
 
-func (jc *Juicer) telemetryUpdate() {
+func (jc *Juicer) Start(ctx context.Context) {
+	go jc.canSensorBus.runCAN(ctx)
+	go runECU(ctx, jc.ecuChan)
+	go runGPS(ctx, jc.gpsChan)
+}
+
+func (jc *Juicer) TelemetryUpdate() {
 	// send to UDP channel
 	if jc.prevTelemetry.Speed != jc.telemetry.Speed {
 		if err := jc.metricSender.SendSpeed(int(jc.telemetry.Speed)); err != nil {
@@ -53,23 +50,22 @@ func (jc *Juicer) telemetryUpdate() {
 	jc.prevTelemetry = jc.telemetry
 }
 
-func mkChannels() (gpsChan chan gpsData, ecuChan chan ecuData, canSensorChan chan canSensorData) {
-	gpsChan = make(chan gpsData, channelBufferSize)
-	ecuChan = make(chan ecuData, channelBufferSize)
-	canSensorChan = make(chan canSensorData, channelBufferSize)
-	return
+func (jc *Juicer) mkChannels() {
+	jc.gpsChan = make(chan gpsData, channelBufferSize)
+	jc.ecuChan = make(chan ecuData, channelBufferSize)
+	jc.canSensorChan = make(chan canSensorData, channelBufferSize)
 }
 
-func checkChannels(curTelemetry *Telemetry, gpsChan chan gpsData, ecuChan chan ecuData, canSensorChan chan canSensorData) (changed bool) {
+func (jc *Juicer) CheckChannels() (changed bool) {
 	newTelemetry := Telemetry{}
 	select {
-	case gpsData := <-gpsChan:
+	case gpsData := <-jc.gpsChan:
 		newTelemetry.Latitude = float64(gpsData.Latitude) / math.Pow(10, 7)
 		newTelemetry.Longitude = float64(gpsData.Longitude) / math.Pow(10, 7)
 		newTelemetry.Altitude = float32(gpsData.Altitude) / 100.0
 		newTelemetry.Track = float32(gpsData.Track)
 		newTelemetry.GPSSpeed = float32(gpsData.Speed)
-	case ecuData := <-ecuChan:
+	case ecuData := <-jc.ecuChan:
 		newTelemetry.GasPedalAngle = uint8(ecuData.GasPedalAngle)
 		newTelemetry.RPM = ecuData.RPM
 		newTelemetry.OilPressure = ecuData.OilPressure
@@ -77,14 +73,14 @@ func checkChannels(curTelemetry *Telemetry, gpsChan chan gpsData, ecuChan chan e
 		newTelemetry.CoolantTemp = ecuData.CoolantTemp
 		newTelemetry.AirIntakeTemp = ecuData.AirIntakeTemp
 		newTelemetry.BatteryVoltage = ecuData.BatteryVoltage
-	case canSensorData := <-canSensorChan:
+	case canSensorData := <-jc.canSensorChan:
 		newTelemetry.FuelRemaining = canSensorData.FuelRemaining
 		newTelemetry.FuelLevel = uint8(canSensorData.FuelLevel)
 		newTelemetry.CoolantTemp = float32(canSensorData.CoolantTemp)
 		newTelemetry.OilTemp = float32(canSensorData.OilTemp)
 	}
-	if *curTelemetry != newTelemetry {
-		*curTelemetry = newTelemetry
+	if jc.telemetry != newTelemetry {
+		jc.telemetry = newTelemetry
 		return true
 	}
 	return false

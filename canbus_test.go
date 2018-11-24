@@ -1,4 +1,4 @@
-package main
+package juicer
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 )
 
 func TestRunCANBus(t *testing.T) {
-	_, _, canBusChan := mkChannels()
+	jc := NewJuicer()
 
 	origCanBusConnect := canBusConnect
 	defer func() {
@@ -21,7 +21,7 @@ func TestRunCANBus(t *testing.T) {
 	}
 
 	canBusRetryable := &canBusRetryable{
-		sendChan: canBusChan,
+		sendChan: jc.canSensorChan,
 	}
 
 	// close before opening
@@ -43,21 +43,21 @@ func TestRunCANBus(t *testing.T) {
 	stub.fnChan <- func() {
 		stub.callbacks.CoolantTemp(1)
 	}
-	data := <-canBusChan
+	data := <-jc.canSensorChan
 	expectedData.CoolantTemp = 1
 	assert.Equal(t, expectedData, data)
 
 	stub.fnChan <- func() {
 		stub.callbacks.OilTemp(2)
 	}
-	data = <-canBusChan
+	data = <-jc.canSensorChan
 	expectedData.OilTemp = 2
 	assert.Equal(t, expectedData, data)
 
 	stub.fnChan <- func() {
 		stub.callbacks.Fuel(3)
 	}
-	data = <-canBusChan
+	data = <-jc.canSensorChan
 	expectedData.FuelLevel = 3
 	assert.Equal(t, expectedData, data)
 

@@ -1,4 +1,4 @@
-package main
+package juicer
 
 import (
 	"github.com/stretchr/testify/assert"
@@ -6,7 +6,7 @@ import (
 )
 
 func TestCheckChannelsGPS(t *testing.T) {
-	gpsChan, ecuChan, canSensorChan := mkChannels()
+	jc := NewJuicer()
 
 	gps := gpsData{
 		Latitude:  1,
@@ -16,39 +16,38 @@ func TestCheckChannelsGPS(t *testing.T) {
 		Speed:     5,
 	}
 
-	gpsChan <- gps
-	telem := Telemetry{}
-	assert.True(t, checkChannels(&telem, gpsChan, ecuChan, canSensorChan))
-	assert.Equal(t, 0.0000001, telem.Latitude)
-	assert.Equal(t, 0.0000002, telem.Longitude)
-	assert.Equal(t, float32(0.03), telem.Altitude)
-	assert.Equal(t, float32(4.0), telem.Track)
-	assert.Equal(t, float32(5.0), telem.GPSSpeed)
+	jc.gpsChan <- gps
+	assert.True(t, jc.CheckChannels())
+	assert.Equal(t, 0.0000001, jc.telemetry.Latitude)
+	assert.Equal(t, 0.0000002, jc.telemetry.Longitude)
+	assert.Equal(t, float32(0.03), jc.telemetry.Altitude)
+	assert.Equal(t, float32(4.0), jc.telemetry.Track)
+	assert.Equal(t, float32(5.0), jc.telemetry.GPSSpeed)
 
 	// send the same data
-	gpsChan <- gps
-	prevTelem := telem
-	assert.False(t, checkChannels(&telem, gpsChan, ecuChan, canSensorChan))
-	assert.Equal(t, prevTelem, telem)
+	jc.gpsChan <- gps
+	prevTelem := jc.telemetry
+	assert.False(t, jc.CheckChannels())
+	assert.Equal(t, prevTelem, jc.telemetry)
 
 	// send different data
-	gpsChan <- gpsData{
+	jc.gpsChan <- gpsData{
 		Latitude:  6,
 		Longitude: 7,
 		Altitude:  8,
 		Track:     9,
 		Speed:     10,
 	}
-	assert.True(t, checkChannels(&telem, gpsChan, ecuChan, canSensorChan))
-	assert.Equal(t, 0.0000006, telem.Latitude)
-	assert.Equal(t, 0.0000007, telem.Longitude)
-	assert.Equal(t, float32(0.08), telem.Altitude)
-	assert.Equal(t, float32(9.0), telem.Track)
-	assert.Equal(t, float32(10.0), telem.GPSSpeed)
+	assert.True(t, jc.CheckChannels())
+	assert.Equal(t, 0.0000006, jc.telemetry.Latitude)
+	assert.Equal(t, 0.0000007, jc.telemetry.Longitude)
+	assert.Equal(t, float32(0.08), jc.telemetry.Altitude)
+	assert.Equal(t, float32(9.0), jc.telemetry.Track)
+	assert.Equal(t, float32(10.0), jc.telemetry.GPSSpeed)
 }
 
 func TestCheckChannelECU(t *testing.T) {
-	gpsChan, ecuChan, canSensorChan := mkChannels()
+	jc := NewJuicer()
 
 	ecu := ecuData{
 		GasPedalAngle:  1,
@@ -60,24 +59,23 @@ func TestCheckChannelECU(t *testing.T) {
 		BatteryVoltage: 7,
 	}
 
-	ecuChan <- ecu
-	telem := Telemetry{}
-	assert.True(t, checkChannels(&telem, gpsChan, ecuChan, canSensorChan))
-	assert.Equal(t, uint8(1), telem.GasPedalAngle)
-	assert.Equal(t, float32(2), telem.RPM)
-	assert.Equal(t, float32(3), telem.OilPressure)
-	assert.Equal(t, float32(4), telem.Speed)
-	assert.Equal(t, float32(5), telem.CoolantTemp)
-	assert.Equal(t, float32(6), telem.AirIntakeTemp)
-	assert.Equal(t, float32(7), telem.BatteryVoltage)
+	jc.ecuChan <- ecu
+	assert.True(t, jc.CheckChannels())
+	assert.Equal(t, uint8(1), jc.telemetry.GasPedalAngle)
+	assert.Equal(t, float32(2), jc.telemetry.RPM)
+	assert.Equal(t, float32(3), jc.telemetry.OilPressure)
+	assert.Equal(t, float32(4), jc.telemetry.Speed)
+	assert.Equal(t, float32(5), jc.telemetry.CoolantTemp)
+	assert.Equal(t, float32(6), jc.telemetry.AirIntakeTemp)
+	assert.Equal(t, float32(7), jc.telemetry.BatteryVoltage)
 
 	// send the same data
-	ecuChan <- ecu
-	prevTelem := telem
-	assert.False(t, checkChannels(&telem, gpsChan, ecuChan, canSensorChan))
-	assert.Equal(t, prevTelem, telem)
+	jc.ecuChan <- ecu
+	prevTelem := jc.telemetry
+	assert.False(t, jc.CheckChannels())
+	assert.Equal(t, prevTelem, jc.telemetry)
 
-	ecuChan <- ecuData{
+	jc.ecuChan <- ecuData{
 		GasPedalAngle:  8,
 		RPM:            9,
 		OilPressure:    10,
@@ -86,18 +84,18 @@ func TestCheckChannelECU(t *testing.T) {
 		AirIntakeTemp:  13,
 		BatteryVoltage: 14,
 	}
-	assert.True(t, checkChannels(&telem, gpsChan, ecuChan, canSensorChan))
-	assert.Equal(t, uint8(8), telem.GasPedalAngle)
-	assert.Equal(t, float32(9), telem.RPM)
-	assert.Equal(t, float32(10), telem.OilPressure)
-	assert.Equal(t, float32(11), telem.Speed)
-	assert.Equal(t, float32(12), telem.CoolantTemp)
-	assert.Equal(t, float32(13), telem.AirIntakeTemp)
-	assert.Equal(t, float32(14), telem.BatteryVoltage)
+	assert.True(t, jc.CheckChannels())
+	assert.Equal(t, uint8(8), jc.telemetry.GasPedalAngle)
+	assert.Equal(t, float32(9), jc.telemetry.RPM)
+	assert.Equal(t, float32(10), jc.telemetry.OilPressure)
+	assert.Equal(t, float32(11), jc.telemetry.Speed)
+	assert.Equal(t, float32(12), jc.telemetry.CoolantTemp)
+	assert.Equal(t, float32(13), jc.telemetry.AirIntakeTemp)
+	assert.Equal(t, float32(14), jc.telemetry.BatteryVoltage)
 }
 
 func TestCheckChannelCAN(t *testing.T) {
-	gpsChan, ecuChan, canSensorChan := mkChannels()
+	jc := NewJuicer()
 
 	can := canSensorData{
 		FuelRemaining: 1,
@@ -105,30 +103,29 @@ func TestCheckChannelCAN(t *testing.T) {
 		CoolantTemp:   3,
 		OilTemp:       4,
 	}
-	canSensorChan <- can
-	telem := Telemetry{}
-	assert.True(t, checkChannels(&telem, gpsChan, ecuChan, canSensorChan))
-	assert.Equal(t, float32(1), telem.FuelRemaining)
-	assert.Equal(t, uint8(2), telem.FuelLevel)
-	assert.Equal(t, float32(3), telem.CoolantTemp)
-	assert.Equal(t, float32(4), telem.OilTemp)
+	jc.canSensorChan <- can
+	assert.True(t, jc.CheckChannels())
+	assert.Equal(t, float32(1), jc.telemetry.FuelRemaining)
+	assert.Equal(t, uint8(2), jc.telemetry.FuelLevel)
+	assert.Equal(t, float32(3), jc.telemetry.CoolantTemp)
+	assert.Equal(t, float32(4), jc.telemetry.OilTemp)
 
-	canSensorChan <- can
-	prevTelem := telem
-	assert.False(t, checkChannels(&telem, gpsChan, ecuChan, canSensorChan))
-	assert.Equal(t, prevTelem, telem)
+	jc.canSensorChan <- can
+	prevTelem := jc.telemetry
+	assert.False(t, jc.CheckChannels())
+	assert.Equal(t, prevTelem, jc.telemetry)
 
-	canSensorChan <- canSensorData{
+	jc.canSensorChan <- canSensorData{
 		FuelRemaining: 5,
 		FuelLevel:     6,
 		CoolantTemp:   7,
 		OilTemp:       8,
 	}
-	assert.True(t, checkChannels(&telem, gpsChan, ecuChan, canSensorChan))
-	assert.Equal(t, float32(5), telem.FuelRemaining)
-	assert.Equal(t, uint8(6), telem.FuelLevel)
-	assert.Equal(t, float32(7), telem.CoolantTemp)
-	assert.Equal(t, float32(8), telem.OilTemp)
+	assert.True(t, jc.CheckChannels())
+	assert.Equal(t, float32(5), jc.telemetry.FuelRemaining)
+	assert.Equal(t, uint8(6), jc.telemetry.FuelLevel)
+	assert.Equal(t, float32(7), jc.telemetry.CoolantTemp)
+	assert.Equal(t, float32(8), jc.telemetry.OilTemp)
 }
 
 func TestCastToFloat32(t *testing.T) {
@@ -143,15 +140,15 @@ func TestSendSpeed(t *testing.T) {
 	}
 
 	jc.telemetry.Speed = 100
-	jc.telemetryUpdate()
+	jc.TelemetryUpdate()
 	assert.Equal(t, 100, ms.speed)
 	assert.Equal(t, 1, ms.callCount)
 
-	jc.telemetryUpdate()
+	jc.TelemetryUpdate()
 	assert.Equal(t, 1, ms.callCount, "unexpected call after unchanged telemetry")
 
 	jc.telemetry.Speed = 200
-	jc.telemetryUpdate()
+	jc.TelemetryUpdate()
 	assert.Equal(t, 200, ms.speed)
 	assert.Equal(t, 2, ms.callCount)
 }

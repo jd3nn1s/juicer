@@ -1,4 +1,4 @@
-package main
+package juicer
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestRunECU(t *testing.T) {
-	_, ecuChan, _ := mkChannels()
+	jc := NewJuicer()
 
 	origECUConnect := ecuConnect
 	defer func() {
@@ -22,7 +22,7 @@ func TestRunECU(t *testing.T) {
 	}
 
 	ecuRetryable := &ecuRetryable{
-		sendChan: ecuChan,
+		sendChan: jc.ecuChan,
 	}
 
 	// close before opening
@@ -70,7 +70,7 @@ func TestRunECU(t *testing.T) {
 	stub.fnChan <- func() {
 		stub.callbacks.Measurement(kw1281.GroupRPMCoolantTemp, measurements)
 	}
-	data := <-ecuChan
+	data := <-jc.ecuChan
 	assert.Equal(t, float32(3200), data.RPM)
 	cancel()
 	wg.Wait()
