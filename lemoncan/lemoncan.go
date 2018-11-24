@@ -32,12 +32,16 @@ type CANBus interface {
 
 type Connection struct {
 	bus CANBus
-	cb  Callbacks
+	cb  *Callbacks
+}
+
+var newBus = func(portName string)(CANBus, error) {
+	return can.NewBusForInterfaceWithName(portName)
 }
 
 
 func Connect(portName string) (*Connection, error) {
-	bus, err := can.NewBusForInterfaceWithName(portName)
+	bus, err := newBus(portName)
 	if err != nil {
 		return nil, err
 	}
@@ -49,20 +53,19 @@ func Connect(portName string) (*Connection, error) {
 }
 
 func (c *Connection) Start(ctx context.Context, cb Callbacks) error {
-	c.cb = cb
+	c.cb = &cb
 	c.bus.SubscribeFunc(c.handleFrame)
 	log.Info("CAN bus opened and subscribed")
 
 	go func() {
 		select {
 		case <-ctx.Done():
-			log.Info("stopping can bus: %v", ctx.Err())
+			log.Infof("stopping can bus: %v", ctx.Err())
 			if err := c.bus.Disconnect(); err != nil {
 				log.WithField("err", err).Warn("unable to disconnect canbus after context")
 			}
 		}
 	}()
-
 	return c.bus.ConnectAndPublish()
 }
 
@@ -110,7 +113,8 @@ func (c *Connection) handleFrame(frame can.Frame) {
 
 	v, err := uint16Result(frame)
 	if err != nil {
-		log.Error("unable to convert to uint16", err)
+		log.Error("unable to convert to uint16: ", err)
+		return
 	}
 	log.WithField("canID", frame.ID).
 		WithField("intValue", v).
