@@ -14,7 +14,9 @@ type canBusRetryable struct {
 
 func (bus *canBusRetryable) Open() error {
 	c, err := canBusConnect(canBusPortName)
-	bus.c = c
+	if err == nil {
+		bus.c = c
+	}
 	return err
 }
 

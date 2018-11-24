@@ -80,4 +80,5 @@ Port = %d
 	assert.NoError(t, binary.Read(rdr, binary.LittleEndian, &hdr))
 	assert.NoError(t, binary.Read(rdr, binary.LittleEndian, &recvTelem))
 	assert.Equal(t, &newTelem, &recvTelem)
+	assert.NoError(t, udp.Close())
 }

@@ -22,7 +22,9 @@ func (e *ecuRetryable) Name() string {
 
 func (e *ecuRetryable) Open() error {
 	c, err := ecuConnect(ecuPortName)
-	e.c = c
+	if err == nil {
+		e.c = c
+	}
 	return err
 }
 

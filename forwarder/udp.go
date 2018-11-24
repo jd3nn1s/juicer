@@ -74,9 +74,6 @@ func NewUDPForwarderFromReader(configReader io.Reader) (*UDPForwarder, error) {
 }
 
 func (udp *UDPForwarder) Close() error {
-	if udp.conn == nil {
-		return nil
-	}
 	return udp.conn.Close()
 }
 
@@ -85,9 +82,9 @@ func (udp *UDPForwarder) Forward(newTelemetry *juicer.Telemetry, prevTelemetry *
 	select {
 	// copy telemetry as we're processing it on another go-routine
 	case udp.fwdChan <- &telemCopy:
-		log.Error("sent!")
 	default:
 		// if channel is full, skip
+		log.Error("not sent!")
 	}
 	return nil
 }

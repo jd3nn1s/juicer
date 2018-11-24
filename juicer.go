@@ -16,15 +16,16 @@ const (
 
 type Juicer struct {
 	prevTelemetry Telemetry
-	telemetry Telemetry
+	telemetry     Telemetry
 
-	gpsChan chan gpsData
-	ecuChan chan ecuData
+	gpsChan       chan gpsData
+	ecuChan       chan ecuData
 	canSensorChan chan canSensorData
 
 	canSensorBus *canBusRetryable
 
 	forwarders []Forwarder
+	testMode   bool
 }
 
 func NewJuicer() *Juicer {
@@ -34,6 +35,8 @@ func NewJuicer() *Juicer {
 	jc.mkChannels()
 
 	canSensorBus := newCANBus(jc.canSensorChan)
+	jc.canSensorBus = canSensorBus
+
 	jc.AddForwarder(&CANForwarder{
 		canSensorBus: canSensorBus.CANBus(),
 	})
@@ -45,9 +48,18 @@ func (jc *Juicer) AddForwarder(fwder Forwarder) {
 }
 
 func (jc *Juicer) Start(ctx context.Context) {
+	if jc.testMode {
+		log.Warn("starting in test mode")
+		jc.runTestMode(ctx)
+		return
+	}
 	go jc.canSensorBus.runCAN(ctx)
 	go runECU(ctx, jc.ecuChan)
 	go runGPS(ctx, jc.gpsChan)
+}
+
+func (jc *Juicer) SetTestMode(testMode bool) {
+	jc.testMode = testMode
 }
 
 func (jc *Juicer) TelemetryUpdate() {
