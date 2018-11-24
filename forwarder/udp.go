@@ -25,9 +25,12 @@ type Header struct {
 
 var maxTelemetrySize = int(unsafe.Sizeof(Header{}) + unsafe.Sizeof(juicer.Telemetry{}))
 
+var minSendDelay = time.Second
+var sendRateLimit = 100 * time.Millisecond
+
 const (
-	TypeTelemetry = 1
-	TypeTiming    = 2
+	TypeTelemetry uint8 = 1
+	TypeTiming    uint8 = 2
 )
 
 type UDPConfig struct {
@@ -40,7 +43,7 @@ type UDPForwarder struct {
 
 	conn    net.Conn
 	fwdChan chan *juicer.Telemetry
-	wg sync.WaitGroup
+	wg      sync.WaitGroup
 }
 
 func NewUDPForwarder(fileName string) (*UDPForwarder, error) {
@@ -90,17 +93,36 @@ func (udp *UDPForwarder) Forward(newTelemetry *juicer.Telemetry, prevTelemetry *
 }
 
 func (udp *UDPForwarder) Start(ctx context.Context) error {
-	limiter := time.Tick(100 * time.Millisecond)
+	limiter := time.Tick(sendRateLimit)
+	ticker := time.NewTicker(minSendDelay / 2)
+	defer ticker.Stop()
+	lastSent := time.Now()
+	var t *juicer.Telemetry
 	for {
 		<-limiter
 		select {
-		case t := <-udp.fwdChan:
-			if err := udp.forward(t); err != nil {
-				log.Error("unable to forward telemetry to server ", err)
-			}
 		case <-ctx.Done():
 			return ctx.Err()
+		case t = <-udp.fwdChan:
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			// we need to send data at least every second to let the
+			// server know we are alive
+			select {
+			case t = <-udp.fwdChan:
+			// if there is pending data we should send it
+			default:
+				if t == nil || // don't send if no data yet
+					time.Now().Sub(lastSent) < minSendDelay {
+					continue
+				}
+			}
 		}
+		if err := udp.forward(t); err != nil {
+			log.Error("unable to forward telemetry to server ", err)
+		}
+		lastSent = time.Now()
 	}
 }
 

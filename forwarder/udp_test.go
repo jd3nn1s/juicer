@@ -13,39 +13,113 @@ import (
 	"time"
 )
 
-func TestUDPForwarder(t *testing.T) {
+type udpRecv struct {
+	data []byte
+	len  int
+}
+
+func startServer(ctx context.Context, t *testing.T) (int, net.PacketConn, chan udpRecv) {
 	pc, err := net.ListenPacket("udp", "localhost:5000")
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer pc.Close()
 	udpAddr := pc.LocalAddr().(*net.UDPAddr)
-	config := fmt.Sprintf(`
-Server = "127.0.0.1"
-Port = %d
-`, udpAddr.Port)
 
-	recvData := struct{
-		data []byte
-		len int
-	}{}
-
-	dataChan := make(chan struct{}, 1)
 	go func() {
-		buffer := make([]byte, 1024)
-		assert.NoError(t, pc.SetReadDeadline(time.Now().Add(time.Second * 3)))
-		n, _, err := pc.ReadFrom(buffer)
-		assert.NoError(t, err)
-		recvData.data = buffer
-		recvData.len = n
-		dataChan<-struct{}{}
+		select {
+		case <-ctx.Done():
+			pc.Close()
+		}
 	}()
 
-	udp, err := NewUDPForwarderFromReader(bytes.NewBufferString(config))
-	assert.NoError(t, err)
+	dataChan := make(chan udpRecv, 1)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			buffer := make([]byte, 1024)
+			assert.NoError(t, pc.SetReadDeadline(time.Now().Add(time.Second*3)))
+			n, _, _ := pc.ReadFrom(buffer)
+			dataChan <- udpRecv{
+				len:  n,
+				data: buffer,
+			}
+		}
+	}()
+	return udpAddr.Port, pc, dataChan
+}
 
+func config(port int) string {
+	return fmt.Sprintf(`
+Server = "127.0.0.1"
+Port = %d
+`, port)
+}
+
+func decodePacket(t *testing.T, buf []byte) *juicer.Telemetry {
+	hdr := Header{}
+	recvTelem := juicer.Telemetry{}
+	rdr := bytes.NewReader(buf)
+	assert.NoError(t, binary.Read(rdr, binary.LittleEndian, &hdr))
+	assert.Equal(t, TypeTelemetry, hdr.Type)
+	assert.NoError(t, binary.Read(rdr, binary.LittleEndian, &recvTelem))
+	return &recvTelem
+}
+
+func TestTicker(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	port, pc, dataChan := startServer(ctx, t)
+	defer pc.Close()
+
+	oldMinSendDelay := minSendDelay
+	oldSendRateLimit := sendRateLimit
+	defer func() {
+		minSendDelay = oldMinSendDelay
+		sendRateLimit = oldSendRateLimit
+	}()
+
+	minSendDelay = time.Millisecond * 10
+	sendRateLimit = time.Millisecond
+
+	udp, err := NewUDPForwarderFromReader(bytes.NewBufferString(config(port)))
+	assert.NoError(t, err)
+
+	go func() {
+		_ = udp.Start(ctx)
+	}()
+
+	telem := juicer.Telemetry{
+		Speed: 3,
+	}
+	assert.NoError(t, udp.Forward(&telem, &juicer.Telemetry{}))
+
+	recvData := <-dataChan
+	assert.Equal(t, 63, recvData.len)
+
+	for n := 0; n < 3; n++ {
+		start := time.Now()
+		recvData := <-dataChan
+		delay := time.Now().Sub(start)
+		assert.Equal(t, 63, recvData.len)
+		assert.True(t, delay >= minSendDelay)
+		assert.True(t, delay < minSendDelay+time.Millisecond*10)
+		assert.Equal(t, &telem, decodePacket(t, recvData.data))
+	}
+}
+
+func TestUDPForwarder(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	port, pc, dataChan := startServer(ctx, t)
+	defer pc.Close()
+
+	udp, err := NewUDPForwarderFromReader(bytes.NewBufferString(config(port)))
+	assert.NoError(t, err)
 
 	go func() {
 		_ = udp.Start(ctx)
@@ -71,14 +145,10 @@ Port = %d
 	prevTelem := juicer.Telemetry{}
 	assert.NoError(t, udp.Forward(&newTelem, &prevTelem))
 
-	<-dataChan
+	recvData := <-dataChan
 	assert.Equal(t, 63, recvData.len)
 
-	hdr := Header{}
-	recvTelem := juicer.Telemetry{}
-	rdr := bytes.NewReader(recvData.data)
-	assert.NoError(t, binary.Read(rdr, binary.LittleEndian, &hdr))
-	assert.NoError(t, binary.Read(rdr, binary.LittleEndian, &recvTelem))
+	recvTelem := decodePacket(t, recvData.data)
 	assert.Equal(t, &newTelem, &recvTelem)
 	assert.NoError(t, udp.Close())
 }
