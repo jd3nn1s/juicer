@@ -1,6 +1,7 @@
 module github.com/jd3nn1s/juicer
 
 require (
+	github.com/BurntSushi/toml v0.3.1
 	github.com/brutella/can v0.0.0-20180117080637-818f1bc3aba8
 	github.com/jd3nn1s/kw1281 v0.0.0-20181112031746-452ca1eb6c0b
 	github.com/jd3nn1s/skytraq v0.0.0-20181112024350-f8051ca383d0
