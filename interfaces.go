@@ -26,3 +26,7 @@ type CANBus interface {
 type MetricSender interface {
 	SendSpeed(int) error
 }
+
+type Forwarder interface {
+	Forward(newTelemetry *Telemetry, prevTelemetry *Telemetry) error
+}

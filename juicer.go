@@ -15,7 +15,6 @@ const (
 )
 
 type Juicer struct {
-	metricSender MetricSender
 	prevTelemetry Telemetry
 	telemetry Telemetry
 
@@ -24,14 +23,25 @@ type Juicer struct {
 	canSensorChan chan canSensorData
 
 	canSensorBus *canBusRetryable
+
+	forwarders []Forwarder
 }
 
 func NewJuicer() *Juicer {
-	jc := &Juicer{}
+	jc := &Juicer{
+		forwarders: make([]Forwarder, 0),
+	}
 	jc.mkChannels()
+
 	canSensorBus := newCANBus(jc.canSensorChan)
-	jc.metricSender = canSensorBus.CANBus()
+	jc.AddForwarder(&CANForwarder{
+		canSensorBus: canSensorBus.CANBus(),
+	})
 	return jc
+}
+
+func (jc *Juicer) AddForwarder(fwder Forwarder) {
+	jc.forwarders = append(jc.forwarders, fwder)
 }
 
 func (jc *Juicer) Start(ctx context.Context) {
@@ -41,10 +51,9 @@ func (jc *Juicer) Start(ctx context.Context) {
 }
 
 func (jc *Juicer) TelemetryUpdate() {
-	// send to UDP channel
-	if jc.prevTelemetry.Speed != jc.telemetry.Speed {
-		if err := jc.metricSender.SendSpeed(int(jc.telemetry.Speed)); err != nil {
-			log.WithField("speed", jc.telemetry.Speed).Error("unable to send speed to CAN bus")
+	for _, fwder := range jc.forwarders {
+		if err := fwder.Forward(&jc.prevTelemetry, &jc.telemetry); err != nil {
+			log.Errorf("unable to send to forwarder %v %v", fwder, err)
 		}
 	}
 	jc.prevTelemetry = jc.telemetry

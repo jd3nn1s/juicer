@@ -134,21 +134,30 @@ func TestCastToFloat32(t *testing.T) {
 }
 
 func TestSendSpeed(t *testing.T) {
-	ms := &metricSender{}
-	jc := Juicer{
-		metricSender: ms,
+	canStub := canBusStub{}
+	fwder := &CANForwarder{
+		canSensorBus: &canStub,
 	}
 
-	jc.telemetry.Speed = 100
-	jc.TelemetryUpdate()
-	assert.Equal(t, 100, ms.speed)
-	assert.Equal(t, 1, ms.callCount)
+	prevT := Telemetry{}
+	newT := Telemetry{}
+	newT.Speed = 100
+	assert.NoError(t, fwder.Forward(&prevT, &newT))
+	assert.Equal(t, 100, canStub.speed)
+	assert.Equal(t, 1, canStub.speedCallCount)
 
-	jc.TelemetryUpdate()
-	assert.Equal(t, 1, ms.callCount, "unexpected call after unchanged telemetry")
+	prevT = newT
+	assert.NoError(t, fwder.Forward(&prevT, &newT))
+	assert.Equal(t, 1, canStub.speedCallCount, "unexpected call after unchanged telemetry")
 
-	jc.telemetry.Speed = 200
-	jc.TelemetryUpdate()
-	assert.Equal(t, 200, ms.speed)
-	assert.Equal(t, 2, ms.callCount)
+	newT.Speed = 200
+	assert.NoError(t, fwder.Forward(&prevT, &newT))
+	assert.Equal(t, 200, canStub.speed)
+	assert.Equal(t, 2, canStub.speedCallCount)
+}
+
+func TestAddForwarder(t *testing.T) {
+	jc := NewJuicer()
+	fwder := forwarderStub{}
+	jc.AddForwarder(&fwder)
 }
