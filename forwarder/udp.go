@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 	"unsafe"
 )
 
@@ -84,13 +85,14 @@ func (udp *UDPForwarder) Forward(newTelemetry *juicer.Telemetry, prevTelemetry *
 	case udp.fwdChan <- &telemCopy:
 	default:
 		// if channel is full, skip
-		log.Error("not sent!")
 	}
 	return nil
 }
 
 func (udp *UDPForwarder) Start(ctx context.Context) error {
+	limiter := time.Tick(100 * time.Millisecond)
 	for {
+		<-limiter
 		select {
 		case t := <-udp.fwdChan:
 			if err := udp.forward(t); err != nil {

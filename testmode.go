@@ -22,12 +22,12 @@ func (jc *Juicer) runTestMode(ctx context.Context) {
 
 			if down {
 				gps.Speed -= 0.01
-				gps.Longitude -= 100
-				gps.Latitude -= 100
+				gps.Longitude -= 1
+				gps.Latitude -= 1
 			} else {
 				gps.Speed += 0.01
-				gps.Longitude += 100
-				gps.Latitude += 100
+				gps.Longitude += 1
+				gps.Latitude += 1
 			}
 
 			if gps.Speed == 0 {
@@ -49,8 +49,10 @@ func (jc *Juicer) runTestMode(ctx context.Context) {
 			jc.ecuChan <- ecu
 
 			if down {
+				ecu.Speed -= 7
 				ecu.RPM -= 100
 			} else {
+				ecu.Speed += 7
 				ecu.RPM += 100
 			}
 

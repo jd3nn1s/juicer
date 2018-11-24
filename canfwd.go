@@ -5,12 +5,16 @@ import (
 )
 
 type CANForwarder struct {
-	canSensorBus CANBus
+	canSensorBus *canBusRetryable
 }
 
 func (fwd *CANForwarder) Forward(prevTelemetry *Telemetry, newTelemetry *Telemetry) error {
 	if prevTelemetry.Speed != newTelemetry.Speed {
-		if err := fwd.canSensorBus.SendSpeed(int(newTelemetry.Speed)); err != nil {
+		canBus := fwd.canSensorBus.CANBus()
+		if canBus == nil {
+			return errors.New("canbus is not initialized")
+		}
+		if err := canBus.SendSpeed(int(newTelemetry.Speed)); err != nil {
 			return errors.Wrapf(err, "unable to send speed to CAN bus")
 		}
 	}

@@ -38,7 +38,7 @@ func NewJuicer() *Juicer {
 	jc.canSensorBus = canSensorBus
 
 	jc.AddForwarder(&CANForwarder{
-		canSensorBus: canSensorBus.CANBus(),
+		canSensorBus: canSensorBus,
 	})
 	return jc
 }
@@ -68,7 +68,6 @@ func (jc *Juicer) TelemetryUpdate() {
 			log.Errorf("unable to send to forwarder %v %v", fwder, err)
 		}
 	}
-	jc.prevTelemetry = jc.telemetry
 }
 
 func (jc *Juicer) mkChannels() {
@@ -78,7 +77,7 @@ func (jc *Juicer) mkChannels() {
 }
 
 func (jc *Juicer) CheckChannels() (changed bool) {
-	newTelemetry := Telemetry{}
+	newTelemetry := jc.telemetry
 	select {
 	case gpsData := <-jc.gpsChan:
 		newTelemetry.Latitude = float64(gpsData.Latitude) / math.Pow(10, 7)
@@ -91,7 +90,6 @@ func (jc *Juicer) CheckChannels() (changed bool) {
 		newTelemetry.RPM = ecuData.RPM
 		newTelemetry.OilPressure = ecuData.OilPressure
 		newTelemetry.Speed = float32(ecuData.Speed)
-		newTelemetry.CoolantTemp = ecuData.CoolantTemp
 		newTelemetry.AirIntakeTemp = ecuData.AirIntakeTemp
 		newTelemetry.BatteryVoltage = ecuData.BatteryVoltage
 	case canSensorData := <-jc.canSensorChan:
@@ -101,6 +99,7 @@ func (jc *Juicer) CheckChannels() (changed bool) {
 		newTelemetry.OilTemp = float32(canSensorData.OilTemp)
 	}
 	if jc.telemetry != newTelemetry {
+		jc.prevTelemetry = jc.telemetry
 		jc.telemetry = newTelemetry
 		return true
 	}

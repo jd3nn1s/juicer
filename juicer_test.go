@@ -65,7 +65,7 @@ func TestCheckChannelECU(t *testing.T) {
 	assert.Equal(t, float32(2), jc.telemetry.RPM)
 	assert.Equal(t, float32(3), jc.telemetry.OilPressure)
 	assert.Equal(t, float32(4), jc.telemetry.Speed)
-	assert.Equal(t, float32(5), jc.telemetry.CoolantTemp)
+	assert.Equal(t, float32(0), jc.telemetry.CoolantTemp, "coolant temp should not be from ECU")
 	assert.Equal(t, float32(6), jc.telemetry.AirIntakeTemp)
 	assert.Equal(t, float32(7), jc.telemetry.BatteryVoltage)
 
@@ -89,7 +89,7 @@ func TestCheckChannelECU(t *testing.T) {
 	assert.Equal(t, float32(9), jc.telemetry.RPM)
 	assert.Equal(t, float32(10), jc.telemetry.OilPressure)
 	assert.Equal(t, float32(11), jc.telemetry.Speed)
-	assert.Equal(t, float32(12), jc.telemetry.CoolantTemp)
+	assert.Equal(t, float32(0), jc.telemetry.CoolantTemp, "coolant temp should not be from ECU")
 	assert.Equal(t, float32(13), jc.telemetry.AirIntakeTemp)
 	assert.Equal(t, float32(14), jc.telemetry.BatteryVoltage)
 }
@@ -128,6 +128,24 @@ func TestCheckChannelCAN(t *testing.T) {
 	assert.Equal(t, float32(8), jc.telemetry.OilTemp)
 }
 
+func TestInterleaved(t *testing.T) {
+	jc := NewJuicer()
+
+	jc.canSensorChan <- canSensorData{
+		FuelRemaining: 1,
+	}
+	assert.True(t, jc.CheckChannels())
+	assert.Equal(t, float32(1), jc.telemetry.FuelRemaining)
+
+	jc.ecuChan <- ecuData{
+		GasPedalAngle:  8,
+	}
+	assert.True(t, jc.CheckChannels())
+	assert.Equal(t, float32(1), jc.telemetry.FuelRemaining)
+	assert.Equal(t, uint8(8), jc.telemetry.GasPedalAngle)
+
+}
+
 func TestCastToFloat32(t *testing.T) {
 	assert.Equal(t, float32(1), castToFloat32(int(1)))
 	assert.Equal(t, float32(0), castToFloat32("hah"))
@@ -136,7 +154,9 @@ func TestCastToFloat32(t *testing.T) {
 func TestSendSpeed(t *testing.T) {
 	canStub := canBusStub{}
 	fwder := &CANForwarder{
-		canSensorBus: &canStub,
+		canSensorBus: &canBusRetryable{
+			c:        &canStub,
+		},
 	}
 
 	prevT := Telemetry{}

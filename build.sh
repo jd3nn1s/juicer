@@ -7,6 +7,7 @@ popd
 pushd ../skytraq
 go test
 popd
+go test ./...
 export GOOS=linux
 export GOARCH=arm
 export GOARM=7
