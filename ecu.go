@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/jd3nn1s/kw1281"
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 type ecuRetryable struct{
@@ -43,6 +44,8 @@ func (e *ecuRetryable) Start(ctx context.Context) error {
 			for _, line := range details.Details {
 				log.Infof("ECU: %s", line)
 			}
+
+			go e.startMeasurementRequests()
 		},
 		Measurement: func(group kw1281.MeasurementGroup, measurements []*kw1281.Measurement) {
 			for _, m := range measurements {
@@ -52,7 +55,7 @@ func (e *ecuRetryable) Start(ctx context.Context) error {
 				case kw1281.MetricBatteryVoltage:
 					data.BatteryVoltage = castToFloat32(m.Value)
 				case kw1281.MetricThrottleAngle:
-					data.GasPedalAngle = m.Value.(int)
+					data.GasPedalAngle = int(m.Value.(float64))
 				case kw1281.MetricAirIntakeTemp:
 					data.AirIntakeTemp = castToFloat32(m.Value)
 				case kw1281.MetricSpeed:
@@ -65,6 +68,26 @@ func (e *ecuRetryable) Start(ctx context.Context) error {
 			}
 		},
 	})
+}
+
+func (e *ecuRetryable) startMeasurementRequests() {
+	log.Info("starting measurement requests")
+	c := e.c
+	lastSent := time.Now()
+	var err error
+	for {
+		err = c.RequestMeasurementGroup(kw1281.GroupRPMThrottleIntakeAirBlockNum)
+		err = c.RequestMeasurementGroup(kw1281.GroupRPMSpeedBlockNum)
+
+		if time.Now().Sub(lastSent) > time.Second * 2 {
+			err = c.RequestMeasurementGroup(kw1281.GroupRPMBatteryInjectionTimeBlockNum)
+			lastSent = time.Now()
+		}
+		if err != nil {
+			log.Error("unable to request measurement group ", err)
+			break
+		}
+	}
 }
 
 func runECU(ctx context.Context, sendChan chan<- ecuData) {

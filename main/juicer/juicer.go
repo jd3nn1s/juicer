@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"github.com/jd3nn1s/juicer"
 	"github.com/jd3nn1s/juicer/forwarder"
 	log "github.com/sirupsen/logrus"
 )
 
 var testMode = flag.Bool("testmode", false, "generate test data")
+var printTelemetry = flag.Bool("print-telemetry", false, "print telemetry to stdout")
 
 func main() {
 	log.SetLevel(log.InfoLevel)
@@ -29,6 +31,9 @@ func main() {
 	for {
 		changed := jc.CheckChannels()
 		if changed {
+			if *printTelemetry {
+				fmt.Printf("%+v\n", jc.Telemetry)
+			}
 			jc.TelemetryUpdate()
 		}
 	}

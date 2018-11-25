@@ -10,6 +10,7 @@ import (
 type KW1281 interface {
 	Close() error
 	Start(context.Context, kw1281.Callbacks) error
+	RequestMeasurementGroup(kw1281.MeasurementGroup) error
 }
 
 type GPS interface {

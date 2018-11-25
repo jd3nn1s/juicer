@@ -18,7 +18,7 @@ type udpRecv struct {
 	len  int
 }
 
-func startServer(ctx context.Context, t *testing.T) (int, net.PacketConn, chan udpRecv) {
+func startServer(ctx context.Context) (int, net.PacketConn, chan udpRecv) {
 	pc, err := net.ListenPacket("udp", "localhost:5000")
 	if err != nil {
 		log.Fatal(err)
@@ -41,7 +41,7 @@ func startServer(ctx context.Context, t *testing.T) (int, net.PacketConn, chan u
 			default:
 			}
 			buffer := make([]byte, 1024)
-			assert.NoError(t, pc.SetReadDeadline(time.Now().Add(time.Second*3)))
+			_ = pc.SetReadDeadline(time.Now().Add(time.Second*3))
 			n, _, _ := pc.ReadFrom(buffer)
 			dataChan <- udpRecv{
 				len:  n,
@@ -72,7 +72,7 @@ func decodePacket(t *testing.T, buf []byte) *juicer.Telemetry {
 func TestTicker(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	port, pc, dataChan := startServer(ctx, t)
+	port, pc, dataChan := startServer(ctx)
 	defer pc.Close()
 
 	oldMinSendDelay := minSendDelay
@@ -115,7 +115,7 @@ func TestUDPForwarder(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	port, pc, dataChan := startServer(ctx, t)
+	port, pc, dataChan := startServer(ctx)
 	defer pc.Close()
 
 	udp, err := NewUDPForwarderFromReader(bytes.NewBufferString(config(port)))
@@ -149,6 +149,6 @@ func TestUDPForwarder(t *testing.T) {
 	assert.Equal(t, 63, recvData.len)
 
 	recvTelem := decodePacket(t, recvData.data)
-	assert.Equal(t, &newTelem, &recvTelem)
+	assert.Equal(t, &newTelem, recvTelem)
 	assert.NoError(t, udp.Close())
 }

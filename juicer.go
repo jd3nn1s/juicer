@@ -15,8 +15,8 @@ const (
 )
 
 type Juicer struct {
-	prevTelemetry Telemetry
-	telemetry     Telemetry
+	PrevTelemetry Telemetry
+	Telemetry     Telemetry
 
 	gpsChan       chan gpsData
 	ecuChan       chan ecuData
@@ -64,7 +64,7 @@ func (jc *Juicer) SetTestMode(testMode bool) {
 
 func (jc *Juicer) TelemetryUpdate() {
 	for _, fwder := range jc.forwarders {
-		if err := fwder.Forward(&jc.prevTelemetry, &jc.telemetry); err != nil {
+		if err := fwder.Forward(&jc.PrevTelemetry, &jc.Telemetry); err != nil {
 			log.Errorf("unable to send to forwarder %v %v", fwder, err)
 		}
 	}
@@ -77,7 +77,7 @@ func (jc *Juicer) mkChannels() {
 }
 
 func (jc *Juicer) CheckChannels() (changed bool) {
-	newTelemetry := jc.telemetry
+	newTelemetry := jc.Telemetry
 	select {
 	case gpsData := <-jc.gpsChan:
 		newTelemetry.Latitude = float64(gpsData.Latitude) / math.Pow(10, 7)
@@ -98,9 +98,9 @@ func (jc *Juicer) CheckChannels() (changed bool) {
 		newTelemetry.CoolantTemp = float32(canSensorData.CoolantTemp)
 		newTelemetry.OilTemp = float32(canSensorData.OilTemp)
 	}
-	if jc.telemetry != newTelemetry {
-		jc.prevTelemetry = jc.telemetry
-		jc.telemetry = newTelemetry
+	if jc.Telemetry != newTelemetry {
+		jc.PrevTelemetry = jc.Telemetry
+		jc.Telemetry = newTelemetry
 		return true
 	}
 	return false
@@ -110,8 +110,12 @@ func castToFloat32(val interface{}) float32 {
 	switch v := val.(type) {
 	case int:
 		return float32(v)
+	case float64:
+		return float32(v)
 	case float32:
 		return v
+	default:
+		log.WithField("v", val).Error("unable to cast to float32")
 	}
 	return 0
 }

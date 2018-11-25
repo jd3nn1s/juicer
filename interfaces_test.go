@@ -72,6 +72,10 @@ func (k *kw1281Stub) Start(ctx context.Context, callbacks kw1281.Callbacks) erro
 	return k.sensorStub.start(ctx)
 }
 
+func (k *kw1281Stub) RequestMeasurementGroup(kw1281.MeasurementGroup) error {
+	return nil
+}
+
 func createGPSStub() *skytraqStub {
 	return &skytraqStub{
 		sensorStub: *createSensorStub(),
